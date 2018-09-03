@@ -111,13 +111,17 @@ def make_record():
 
 	anchors = read_anchors_file(anchors_path)
 	n_anchors = np.shape(anchors)[0]
+	
+	# csv_filenames [sample_num, len_name_str]
+	# csv_rois [sample_num, roi_num,4]
+	# csv_classes [sample_num,roi_num,1]
 	csv_filenames, csv_rois, csv_classes = read_csv_file(csv_path)
 
 	with tf.python_io.TFRecordWriter(tfrecord_path) as writer:
-
 		for filename, rois, classes in zip(csv_filenames, csv_rois, csv_classes):
-
+			# [roi_num,4]  eval 用来计算字符串表达式
 			rois = np.array(eval(rois), dtype=np.float32)
+			# [roi_num,1]
 			classes = np.array(eval(classes), dtype=np.int32)
 
 			img = cv2.imread(filename)
@@ -128,7 +132,7 @@ def make_record():
 			label = np.zeros([grid_h, grid_w, n_anchors, 6], dtype=np.float32)
 
 			for roi, cls in zip(rois,classes):
-
+				# roi [4,]   cls [1,]
 				# IOU larger than threshold, or the highest
 				active_indxs = get_active_anchors(roi, anchors)
 				grid_x, grid_y = get_grid_cell(roi, raw_w, raw_h, grid_w, grid_h)

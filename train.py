@@ -25,6 +25,7 @@ def read_example(filename, batch_size):
 
 	reader = tf.TFRecordReader()
 	filename_queue = tf.train.string_input_producer([filename], num_epochs=None)
+	# 读取一个序列化过的 record file 的内容
 	_, serialized_example = reader.read(filename_queue)
 
 	min_queue_examples = 500
@@ -116,7 +117,7 @@ def yolo_net(x, train_logical):
 	return y
 
 def slice_tensor(x, start, end=None):
-	
+	# slice fragment in last dimension
 	if end < 0:
 		y = x[...,start:]
 		
@@ -128,10 +129,9 @@ def slice_tensor(x, start, end=None):
 	return y
     
 def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
-	# make mask label data need to assign the proper anchor to ground truth
-	# dim 5 of label is the confidence score, which is either 1 or 0, generated according to IOU between anchor and ground truth:
-	# reference to OneNote
+	# dim 5 of label is the confidence score  [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale, cls, conf ]
 	mask = slice_tensor(label, 5)
+	# [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale, cls]
 	label = slice_tensor(label, 0, 4)
 	
 	mask = tf.cast(tf.reshape(mask, shape=(-1, GRID_H, GRID_W, N_ANCHORS)),tf.bool)
@@ -156,6 +156,7 @@ def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
 	with tf.name_scope('lab'):
 		masked_label_xy = slice_tensor(masked_label, 0, 1)
 		masked_label_wh = slice_tensor(masked_label, 2, 3)
+		# [-1,1] cls
 		masked_label_c = slice_tensor(masked_label, 4)
 		masked_label_c_vec = tf.reshape(tf.one_hot(tf.cast(masked_label_c, tf.int32), depth=N_CLASSES), shape=(-1, N_CLASSES))
 	
