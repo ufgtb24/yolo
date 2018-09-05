@@ -128,9 +128,9 @@ def yolo_net(x, train_logical):
     x = conv_layer(x, (3, 3), 1024, train_logical, 'conv20')
     x = passthrough_layer(x, passthrough, (3, 3), 64, 2, train_logical, 'conv21')
     x = conv_layer(x, (3, 3), 1024, train_logical, 'conv22')
-    x = conv_layer(x, (1, 1), N_ANCHORS * (N_CLASSES + 5), train_logical, 'conv23')
+    x = conv_layer(x, (1, 1), N_ANCHORS * 5, train_logical, 'conv23')
     
-    y = tf.reshape(x, shape=(-1, GRID_H, GRID_W, N_ANCHORS, N_CLASSES + 5), name='y')
+    y = tf.reshape(x, shape=(-1, GRID_H, GRID_W, N_ANCHORS, 5), name='y')
     
     return y
 
@@ -149,10 +149,10 @@ def slice_tensor(x, start, end=None):
 
 
 def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
-    # dim 5 of label is the confidence score  [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale, cls, conf ]
-    mask = slice_tensor(label, 5)
-    # [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale, cls]
-    label = slice_tensor(label, 0, 4)
+    # dim 5 of label is the confidence score  [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale,  conf ]
+    mask = slice_tensor(label, 4)
+    # [grid_x_offset, grid_y_offset, roi_w_scale, roi_h_scale]
+    label = slice_tensor(label, 0, 3)
     
     mask = tf.cast(tf.reshape(mask, shape=(-1, GRID_H, GRID_W, N_ANCHORS)), tf.bool)
     
@@ -162,7 +162,7 @@ def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
         # dim(label)=5 dim(mask)=4 so 5-4+1=2
         # [num_of_anchor_consist_obj,5]
         masked_label = tf.boolean_mask(label, mask)
-        # [num_of_anchor_consist_obj,25]
+        # [num_of_anchor_consist_obj,5]
         masked_pred = tf.boolean_mask(pred, mask)
         neg_masked_pred = tf.boolean_mask(pred, tf.logical_not(mask))
     
@@ -171,15 +171,10 @@ def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
         masked_pred_wh = tf.exp(slice_tensor(masked_pred, 2, 3))
         masked_pred_o = tf.sigmoid(slice_tensor(masked_pred, 4))
         masked_pred_no_o = tf.sigmoid(slice_tensor(neg_masked_pred, 4))
-        masked_pred_c = tf.nn.softmax(slice_tensor(masked_pred, 5, -1))
     
     with tf.name_scope('lab'):
         masked_label_xy = slice_tensor(masked_label, 0, 1)
         masked_label_wh = slice_tensor(masked_label, 2, 3)
-        # [-1,1] cls
-        masked_label_c = slice_tensor(masked_label, 4)
-        masked_label_c_vec = tf.reshape(tf.one_hot(tf.cast(masked_label_c, tf.int32), depth=N_CLASSES),
-                                        shape=(-1, N_CLASSES))
     
     with tf.name_scope('merge'):
         with tf.name_scope('loss_xy'):
@@ -190,10 +185,8 @@ def yolo_loss(pred, label, lambda_coord, lambda_no_obj):
             loss_obj = tf.reduce_sum(tf.square(masked_pred_o - 1))
         with tf.name_scope('loss_no_obj'):
             loss_no_obj = tf.reduce_sum(tf.square(masked_pred_no_o))
-        with tf.name_scope('loss_class'):
-            loss_c = tf.reduce_sum(tf.square(masked_pred_c - masked_label_c_vec))
         
-        loss = lambda_coord * (loss_xy + loss_wh) + loss_obj + lambda_no_obj * loss_no_obj + loss_c
+        loss = lambda_coord * (loss_xy + loss_wh) + loss_obj + lambda_no_obj * loss_no_obj
     
     return loss
 
@@ -213,7 +206,7 @@ def train():
     
     image = tf.placeholder(shape=[None, IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_DEPTH], dtype=tf.float32,
                            name='image_placeholder')
-    label = tf.placeholder(shape=[None, GRID_H, GRID_W, N_ANCHORS, 6], dtype=tf.float32, name='label_palceholder')
+    label = tf.placeholder(shape=[None, GRID_H, GRID_W, N_ANCHORS, 5], dtype=tf.float32, name='label_palceholder')
     
     train_flag = tf.placeholder(dtype=tf.bool, name='flag_placeholder')
     

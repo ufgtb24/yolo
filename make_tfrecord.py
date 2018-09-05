@@ -4,7 +4,6 @@ import cv2
 import csv
 from datetime import datetime
 import os
-import random
 import sys
 import threading
 
@@ -66,7 +65,8 @@ def get_grid_cell(roi, raw_w, raw_h, grid_w, grid_h):
     
     return grid_x, grid_y
 
-
+# 获得confidence = 1 的anchor. 其余的anchor的confidence都是0. YOLO3 中还有第三类
+# 若果要改造成 YOLO3，需要改这个函数
 def get_active_anchors(roi, anchors):
     indxs = []
     iou_max, index_max = 0, 0
@@ -84,6 +84,7 @@ def get_active_anchors(roi, anchors):
         indxs.append(index_max)
     
     return indxs
+
 
 
 def read_csv_file(filename):
@@ -254,6 +255,6 @@ def _process_image_files():
           (datetime.now(), len(csv_filenames)))
     sys.stdout.flush()
 
-
 if __name__ == "__main__":
+    
     _process_image_files()
